@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FBS Rank</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>FBS Rank</h1>
+    <form id="controls">
+      <label>Ranking <select id="ranker"></select></label>
+      <label>Season <select id="season"></select></label>
+      <label>Week <select id="week"></select></label>
+    </form>
+    <p id="description"></p>
+    <p id="status" role="status"></p>
+    <table id="rankings">
+      <thead>
+        <tr><th>#</th><th></th><th>Team</th><th>Conf</th><th>Record</th><th>Rating</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
