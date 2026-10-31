@@ -2,7 +2,7 @@ name: Update rankings
 
 on:
   schedule:
-    - cron: "0 12 * * *"  # daily; consider tightening to Sun-Mon during the season
+    - cron: "0 12 * * 0"  # Sundays at 12:00 UTC
   workflow_dispatch:
   push:
     branches: [main]
