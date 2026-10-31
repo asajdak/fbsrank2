@@ -1,8 +1,10 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const els = { ranker: $("ranker"), season: $("season"), week: $("week") };
+const els = { ranker: $("ranker"), season: $("season"), week: $("week"), conference: $("conference") };
+const ALL_CONFERENCES = "";
 let index;
+let loaded; // { rankings, previousRanks } for the selected ranker/season/week
 
 async function getJSON(path) {
   const res = await fetch(path);
@@ -60,17 +62,36 @@ async function render() {
     const prevWeek = weeks[weeks.indexOf(week) - 1];
     const prev = prevWeek === undefined ? null : await getJSON(`${base}/week-${prevWeek}.json`);
     const previousRanks = prev && new Map(prev.rankings.map((r) => [r.team, r.rank]));
-
-    const rows = current.rankings.map((r) => {
-      const tr = document.createElement("tr");
-      const record = `${r.wins}-${r.losses}` + (r.ties ? `-${r.ties}` : "");
-      tr.append(cell(r.rank, "num"), movement(r, previousRanks), cell(r.team), cell(r.conference), cell(record), cell(r.rating, "num"));
-      return tr;
-    });
-    document.querySelector("#rankings tbody").replaceChildren(...rows);
+    loaded = { rankings: current.rankings, previousRanks };
+    fillConferences();
+    draw();
   } catch (err) {
     $("status").textContent = `Could not load rankings: ${err.message}`;
   }
+}
+
+// Keeps the chosen conference across week/ranker changes when it still exists.
+function fillConferences() {
+  const names = [...new Set(loaded.rankings.map((r) => r.conference).filter(Boolean))].sort();
+  const keep = names.includes(els.conference.value) ? els.conference.value : ALL_CONFERENCES;
+  fill(
+    els.conference,
+    [{ value: ALL_CONFERENCES, label: "All conferences" }, ...names.map((n) => ({ value: n, label: n }))],
+    keep
+  );
+}
+
+// Ranks are overall ranks, so a filtered table can show e.g. #100 alongside #87.
+function draw() {
+  const conference = els.conference.value;
+  const shown = loaded.rankings.filter((r) => conference === ALL_CONFERENCES || r.conference === conference);
+  const rows = shown.map((r) => {
+    const tr = document.createElement("tr");
+    const record = `${r.wins}-${r.losses}` + (r.ties ? `-${r.ties}` : "");
+    tr.append(cell(r.rank, "num"), movement(r, loaded.previousRanks), cell(r.team), cell(r.conference), cell(record), cell(r.rating, "num"));
+    return tr;
+  });
+  document.querySelector("#rankings tbody").replaceChildren(...rows);
 }
 
 async function init() {
@@ -86,6 +107,7 @@ async function init() {
 
   els.ranker.addEventListener("change", render);
   els.week.addEventListener("change", render);
+  els.conference.addEventListener("change", draw);
   els.season.addEventListener("change", () => { fillWeeks(true); render(); });
   render();
 }
