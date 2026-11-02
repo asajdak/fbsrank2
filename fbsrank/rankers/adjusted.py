@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ..models import Game
 from .classic import ClassicRanker
+from .p4 import default_p4_params, is_p4
 
 
 class AdjustedClassicRanker(ClassicRanker):
@@ -20,7 +21,7 @@ class AdjustedClassicRanker(ClassicRanker):
                 "top_opponent_value": 0.8,
                 "road_win_bonus": 0.1,
                 "p4_opponent_bonus": 0.1,
-                "p4_conferences": ["SEC", "Big Ten", "Big 12", "ACC"],
+                **default_p4_params(),
             }
         )
         self.params.update(overrides)
@@ -30,10 +31,10 @@ class AdjustedClassicRanker(ClassicRanker):
 
     def _game_bonus(self, game: Game, team: str, won: bool) -> float:
         home = team == game.home
-        opp_conf = game.away_conf if home else game.home_conf
+        opp, opp_conf = (game.away, game.away_conf) if home else (game.home, game.home_conf)
         bonus = 0.0
         if won and not home and not game.neutral:
             bonus += self.params["road_win_bonus"]
-        if opp_conf in self.params["p4_conferences"]:
+        if is_p4(self.params, opp, opp_conf):
             bonus += self.params["p4_opponent_bonus"]
         return bonus

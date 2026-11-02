@@ -8,6 +8,7 @@ from pathlib import Path
 from fbsrank import runner
 from fbsrank.models import Game
 from fbsrank.normalize import normalize_game, normalize_season
+from fbsrank.rankers.accumulation import WinAccumulationRanker
 from fbsrank.rankers.adjusted import AdjustedClassicRanker
 from fbsrank.rankers.classic import ClassicRanker
 from fbsrank.rankers.colley import ColleyRanker
@@ -114,6 +115,35 @@ class AdjustedClassicTests(unittest.TestCase):
         self.assertAlmostEqual(lost["H"], 0.8 + 0.2)
 
 
+class WinAccumulationTests(unittest.TestCase):
+    def _g(self, gid, winner, loser, wconf="MAC", lconf="MAC", lclass="fbs", home=True, wclass="fbs"):
+        h, a = (winner, loser) if home else (loser, winner)
+        hc, ac = (wconf, lconf) if home else (lconf, wconf)
+        hcl, acl = (wclass, lclass) if home else (lclass, wclass)
+        hp, ap = (10, 0) if home else (0, 10)
+        return Game(gid, 2000, gid, "regular", f"2000-09-{gid:02d}", h, a, hp, ap, False, hcl, acl, hc, ac)
+
+    def test_documented_example(self):
+        # Me beat O; O beat two P4 teams, a G6 team and an FCS team (and lost to others).
+        games = [
+            self._g(1, "Me", "O"),
+            self._g(2, "O", "P1", lconf="SEC"),
+            self._g(3, "O", "P2", lconf="Big Ten"),
+            self._g(4, "O", "G1", lconf="Sun Belt"),
+            self._g(5, "O", "F1", lclass="fcs"),
+        ]
+        self.assertEqual(WinAccumulationRanker().rank(games)["Me"], 5.0)
+
+    def test_notre_dame_counts_as_p4_but_other_independents_do_not(self):
+        for team, expected in (("Notre Dame", 2.0), ("Army", 1.0), ("UConn", 1.0)):
+            games = [self._g(1, "Me", "O"), self._g(2, "O", team, lconf="FBS Independents")]
+            self.assertEqual(WinAccumulationRanker().rank(games)["Me"], expected)
+
+    def test_fcs_victim_gives_nothing(self):
+        games = [self._g(1, "Me", "F1", lclass="fcs"), self._g(2, "F1", "X", wclass="fcs")]
+        self.assertEqual(WinAccumulationRanker().rank(games)["Me"], 0.0)
+
+
 class EloTests(unittest.TestCase):
     def test_winner_gains_loser_loses_zero_sum(self):
         ratings = EloRanker().rank([game("A", "B", 28, 7)])
@@ -155,11 +185,11 @@ class RunnerTests(unittest.TestCase):
             out = Path(tmp)
             runner.run(FIXTURES, out)
             index = json.loads((out / "index.json").read_text())
-            self.assertEqual({r["id"] for r in index["rankers"]}, {"elo", "colley", "classic", "classic_adjusted"})
+            self.assertEqual({r["id"] for r in index["rankers"]}, {"elo", "colley", "classic", "classic_adjusted", "win_accumulation"})
             weeks = index["seasons"][0]["weeks"]
             self.assertEqual(weeks[-1]["label"], "Postseason")
 
-            for ranker_id in ("elo", "colley", "classic", "classic_adjusted"):
+            for ranker_id in ("elo", "colley", "classic", "classic_adjusted", "win_accumulation"):
                 final = json.loads((out / ranker_id / "2000" / f"week-{weeks[-1]['week']}.json").read_text())
                 teams = [r["team"] for r in final["rankings"]]
                 self.assertEqual(len(teams), 16)  # FCS teams are rated but not published
