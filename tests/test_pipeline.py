@@ -99,6 +99,18 @@ class AdjustedClassicTests(unittest.TestCase):
         self.assertAlmostEqual(ratings["H"], 0.8)
         self.assertAlmostEqual(ratings["V"], 1 + 0.8 * 67 / 68)
 
+    def test_fcs_games_are_ignored(self):
+        fcs = self._g(id=2, week=2, away="Q", away_class="fcs", home="V", home_points=0, away_points=30)
+        r = self._ranker()
+        alone = r.rank([self._g()])
+        both = r.rank([self._g(), fcs])
+        self.assertAlmostEqual(both["V"], alone["V"])
+        self.assertEqual(both["Q"], 0.0)
+
+    def test_team_with_only_fcs_games_still_rated(self):
+        g = self._g(away="Q", away_class="fcs")
+        self.assertEqual(self._ranker().rank([g]), {"H": 0.0, "Q": 0.0})
+
     def test_road_win_bonus(self):
         r = self._ranker(road_win_bonus=0.3)
         base = 1 + 0.8 * 67 / 68
