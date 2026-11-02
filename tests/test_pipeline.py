@@ -8,6 +8,7 @@ from pathlib import Path
 from fbsrank import runner
 from fbsrank.models import Game
 from fbsrank.normalize import normalize_game, normalize_season
+from fbsrank.rankers.adjusted import AdjustedClassicRanker
 from fbsrank.rankers.classic import ClassicRanker
 from fbsrank.rankers.colley import ColleyRanker
 from fbsrank.rankers.elo import EloRanker
@@ -80,6 +81,39 @@ class ClassicTests(unittest.TestCase):
         self.assertAlmostEqual(ClassicRanker().rank([g])["A"], 1.0)
 
 
+class AdjustedClassicTests(unittest.TestCase):
+    def _g(self, **kw):
+        base = dict(id=1, season=2000, week=1, season_type="regular", start_date="2000-09-01",
+                    home="H", away="V", home_points=0, away_points=10, neutral=False,
+                    home_class="fbs", away_class="fbs", home_conf="MAC", away_conf="MAC")
+        base.update(kw)
+        return Game(**base)
+
+    def _ranker(self, **kw):
+        return AdjustedClassicRanker(**{"road_win_bonus": 0.0, "p4_opponent_bonus": 0.0, **kw})
+
+    def test_top_opponent_scaled(self):
+        # V (road winner) ranks #1, H #2: H gets 0.8 for playing #1, V gets 0.8 * 67/68.
+        ratings = self._ranker().rank([self._g()])
+        self.assertAlmostEqual(ratings["H"], 0.8)
+        self.assertAlmostEqual(ratings["V"], 1 + 0.8 * 67 / 68)
+
+    def test_road_win_bonus(self):
+        r = self._ranker(road_win_bonus=0.3)
+        base = 1 + 0.8 * 67 / 68
+        self.assertAlmostEqual(r.rank([self._g()])["V"], base + 0.3)
+        self.assertAlmostEqual(r.rank([self._g(neutral=True)])["V"], base)
+        self.assertAlmostEqual(r.rank([self._g(home_points=10, away_points=0)])["H"], 1 + 0.8 * 67 / 68)
+
+    def test_p4_bonus_applies_regardless_of_result(self):
+        r = self._ranker(p4_opponent_bonus=0.2)
+        ratings = r.rank([self._g(home_conf="SEC")])  # V visits an SEC team and wins
+        self.assertAlmostEqual(ratings["V"], 1 + 0.8 * 67 / 68 + 0.2)
+        self.assertAlmostEqual(ratings["H"], 0.8)  # H's opponent is a MAC team: no bonus
+        lost = r.rank([self._g(away_conf="SEC")])  # H hosts an SEC team and loses
+        self.assertAlmostEqual(lost["H"], 0.8 + 0.2)
+
+
 class EloTests(unittest.TestCase):
     def test_winner_gains_loser_loses_zero_sum(self):
         ratings = EloRanker().rank([game("A", "B", 28, 7)])
@@ -121,11 +155,11 @@ class RunnerTests(unittest.TestCase):
             out = Path(tmp)
             runner.run(FIXTURES, out)
             index = json.loads((out / "index.json").read_text())
-            self.assertEqual({r["id"] for r in index["rankers"]}, {"elo", "colley", "classic"})
+            self.assertEqual({r["id"] for r in index["rankers"]}, {"elo", "colley", "classic", "classic_adjusted"})
             weeks = index["seasons"][0]["weeks"]
             self.assertEqual(weeks[-1]["label"], "Postseason")
 
-            for ranker_id in ("elo", "colley", "classic"):
+            for ranker_id in ("elo", "colley", "classic", "classic_adjusted"):
                 final = json.loads((out / ranker_id / "2000" / f"week-{weeks[-1]['week']}.json").read_text())
                 teams = [r["team"] for r in final["rankings"]]
                 self.assertEqual(len(teams), 16)  # FCS teams are rated but not published

@@ -9,11 +9,12 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 from .base import Ranker
+from .adjusted import AdjustedClassicRanker
 from .classic import ClassicRanker
 from .colley import ColleyRanker
 from .elo import EloRanker
 
-ALL: List[Ranker] = [EloRanker(), ColleyRanker(), ClassicRanker()]
+ALL: List[Ranker] = [EloRanker(), ColleyRanker(), ClassicRanker(), AdjustedClassicRanker()]
 
 
 def select(ids: Optional[List[str]] = None) -> List[Ranker]:

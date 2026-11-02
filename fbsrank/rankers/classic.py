@@ -23,6 +23,15 @@ class ClassicRanker(Ranker):
         self.params = {"cutoff_rank": 69, "max_iterations": 1000}
         self.params.update(overrides)
 
+    # Extension points for variants; the defaults leave the classic scoring untouched.
+    def _opponent_scale(self) -> float:
+        """Value of playing the #1 team (the credit falls linearly from here)."""
+        return 1.0
+
+    def _game_bonus(self, game: Game, team: str, won: bool) -> float:
+        """Fixed extra credit `team` earns from `game`, independent of the rankings."""
+        return 0.0
+
     def rank(self, games: Sequence[Game]) -> Dict[str, float]:
         if not games:
             return {}
@@ -38,7 +47,10 @@ class ClassicRanker(Ranker):
         played: Dict[str, int] = defaultdict(int)
         beat: Dict[str, List[str]] = defaultdict(list)  # team -> opponents it defeated
         opponents: Dict[str, List[str]] = defaultdict(list)
+        bonus: Dict[str, float] = defaultdict(float)  # fixed per-game credit, pass-independent
         for g in games:
+            for team, won in ((g.home, g.home_points > g.away_points), (g.away, g.away_points > g.home_points)):
+                bonus[team] += self._game_bonus(g, team, won)
             opponents[g.home].append(g.away)
             opponents[g.away].append(g.home)
             played[g.home] += 1
@@ -64,15 +76,16 @@ class ClassicRanker(Ranker):
         seen = {order: 0}
 
         cutoff = self.params["cutoff_rank"]
+        scale = self._opponent_scale()
         for _ in range(self.params["max_iterations"]):
             position = {t: i for i, t in enumerate(order, start=1)}
 
             def difficulty(opp: str) -> float:
                 pos = position.get(opp)
-                return 0.0 if pos is None else max(0.0, (cutoff - pos) / (cutoff - 1))
+                return 0.0 if pos is None else scale * max(0.0, (cutoff - pos) / (cutoff - 1))
 
             scores = {
-                t: (wins[t] + sum(difficulty(o) for o in opponents[t])) / played[t] for t in teams
+                t: (wins[t] + bonus[t] + sum(difficulty(o) for o in opponents[t])) / played[t] for t in teams
             }
             new_order = order_of(scores)
             if new_order == order:
