@@ -45376,6 +45376,22 @@
    "away_class": "fbs",
    "home_conf": "Pac-12",
    "away_conf": "Pac-12"
+  },
+  {
+   "id": 401908187,
+   "season": 2026,
+   "week": 9,
+   "season_type": "regular",
+   "start_date": "2026-11-01T18:00:00.000Z",
+   "home": "King's",
+   "away": "Delaware Valley",
+   "home_points": 35,
+   "away_points": 61,
+   "neutral": false,
+   "home_class": "iii",
+   "away_class": "iii",
+   "home_conf": "Mid Atlantic",
+   "away_conf": "Mid Atlantic"
   }
  ]
 }
