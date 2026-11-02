@@ -8,6 +8,7 @@ from pathlib import Path
 from fbsrank import runner
 from fbsrank.models import Game
 from fbsrank.normalize import normalize_game, normalize_season
+from fbsrank.rankers.classic import ClassicRanker
 from fbsrank.rankers.colley import ColleyRanker
 from fbsrank.rankers.elo import EloRanker
 
@@ -45,6 +46,38 @@ class ColleyTests(unittest.TestCase):
 
     def test_empty(self):
         self.assertEqual(ColleyRanker().rank([]), {})
+
+
+class ClassicTests(unittest.TestCase):
+    def test_empty(self):
+        self.assertEqual(ClassicRanker().rank([]), {})
+
+    def test_single_game(self):
+        r = ClassicRanker().rank([game("A", "B", 10, 3)])
+        self.assertGreater(r["A"], r["B"])
+
+    def test_quality_win_beats_padding(self):
+        # A and B are both 1-0 with the same record, but B's win came against the
+        # team that beat C in turn; D has only beaten the winless E.
+        games = [
+            game("X", "C", 10, 0, gid=1),
+            game("B", "X", 10, 0, week=2, gid=2),
+            game("D", "E", 10, 0, gid=3),
+        ]
+        r = ClassicRanker().rank(games)
+        self.assertGreater(r["B"], r["D"])
+
+    def test_cycle_terminates(self):
+        # Three-way round robin is a cycle of equal records.
+        games = [
+            game("A", "B", 7, 0, gid=1), game("B", "C", 7, 0, gid=2), game("C", "A", 7, 0, gid=3),
+        ]
+        r = ClassicRanker().rank(games)
+        self.assertEqual(set(r), {"A", "B", "C"})
+
+    def test_fcs_opponents_give_no_difficulty_credit(self):
+        g = Game(1, 2000, 1, "regular", "2000-09-01", "A", "Q", 10, 0, False, "fbs", "fcs", "", "")
+        self.assertAlmostEqual(ClassicRanker().rank([g])["A"], 1.0)
 
 
 class EloTests(unittest.TestCase):
@@ -88,11 +121,11 @@ class RunnerTests(unittest.TestCase):
             out = Path(tmp)
             runner.run(FIXTURES, out)
             index = json.loads((out / "index.json").read_text())
-            self.assertEqual({r["id"] for r in index["rankers"]}, {"elo", "colley"})
+            self.assertEqual({r["id"] for r in index["rankers"]}, {"elo", "colley", "classic"})
             weeks = index["seasons"][0]["weeks"]
             self.assertEqual(weeks[-1]["label"], "Postseason")
 
-            for ranker_id in ("elo", "colley"):
+            for ranker_id in ("elo", "colley", "classic"):
                 final = json.loads((out / ranker_id / "2000" / f"week-{weeks[-1]['week']}.json").read_text())
                 teams = [r["team"] for r in final["rankings"]]
                 self.assertEqual(len(teams), 16)  # FCS teams are rated but not published

@@ -62,7 +62,7 @@ A ranker is a **pure function of the games played so far**. It never reads files
 
 To add an algorithm: create a module in `fbsrank/rankers/`, subclass `Ranker`, and add an instance to `ALL` in `fbsrank/rankers/__init__.py`.
 
-Included: **Elo** (chronological, with home-field advantage and a margin-of-victory multiplier) and **Colley** (a linear-system solve using only wins and losses, no margin).
+Included: **Elo** (chronological, with home-field advantage and a margin-of-victory multiplier) and **Colley** (a linear-system solve using only wins and losses, no margin), and **FBS Rank Classic** (iterative: record sort, then wins plus opponent-difficulty credit per game until the order stabilizes or cycles).
 
 ### 4. Runner (`fbsrank/runner.py`)
 
